@@ -9,13 +9,14 @@ import sys
 import tempfile
 import unittest
 from collections import namedtuple
-from unittest.mock import patch, Mock
+from unittest.mock import patch, Mock, MagicMock
 
 from azure.cli.core.azclierror import UnclassifiedUserFault
 from azure.cli.core.azclierror import InvalidArgumentValueError
 from azure.cli.core.azclierror import ResourceNotFoundError
 
 import azext_capi.helpers.network as network
+import azext_capi.helpers.argument as argument
 import azext_capi.helpers.generic as generic
 from azext_capi.custom import create_resource_group, create_new_management_cluster, management_cluster_components_missing_matching_expressions, get_default_bootstrap_commands, parse_bootstrap_commands_from_file
 from azext_capi.helpers.prompt import get_user_prompt_or_default
@@ -484,3 +485,40 @@ class ParseKubeadmCommandsFromFileTest(unittest.TestCase):
         self.yaml_load_mock.return_value = fake_output
         result = parse_bootstrap_commands_from_file("fake-path")
         self.assertEqual(result, expected_output)
+
+
+class GetDefaultArgFromConfig(unittest.TestCase):
+
+    def setUp(self):
+        self.get_default_cli_patch = patch('azext_capi.helpers.argument.get_default_cli')
+        self.get_default_cli_mock = self.get_default_cli_patch.start()
+        self.get_default_cli_mock.return_value = MagicMock()
+        self.get_default_cli_mock.return_value.config = MagicMock()
+        self.addCleanup(self.get_default_cli_patch.stop)
+
+    def get_default_arg_from_config(self):
+
+        # Test default return is fallback value if given argument is None
+        cmd = MagicMock()
+        fallback_value = "default_vnet_name"
+        cmd.cli_ctx.config.get.return_value = fallback_value
+        return_value = argument.get_default_arg(cmd, None, "vnet_name", fallback_value)
+        cmd.cli_ctx.config.get.assert_called_once()
+        self.assertEquals(return_value, fallback_value)
+
+        # # Test if given argument is not None will return given argument value
+        # cmd = MagicMock()
+        # argument_value = "fake_location"
+        # return_value = argument.get_default_arg(cmd, argument_value, "location", "fake_fallback")
+        # cmd.assert_not_called()
+        # self.assertEquals(return_value, argument_value)
+
+        # # Test return existing config value if not argument value given
+        # cmd = MagicMock()
+        # config_value = "fake_config_value"
+        # default_fallback = "default_fallback"
+        # cmd.cli_ctx.config.get.return_value = config_value
+        # return_value = argument.get_default_arg(cmd, None, "location", default_fallback)
+        # cmd.cli_ctx.config.get.assert_called_once()
+        # self.assertEquals(return_value, config_value)
+        # self.assertNotEquals(return_value, default_fallback)

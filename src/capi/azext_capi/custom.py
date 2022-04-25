@@ -6,6 +6,7 @@
 """This module implements the behavior of `az capi` commands."""
 
 # pylint: disable=missing-docstring
+# pylint: disable=inconsistent-return-statements
 
 import base64
 import json
@@ -40,7 +41,8 @@ from .helpers.prompt import get_cluster_name_by_user_prompt, get_user_prompt_or_
 from .helpers.generic import match_output
 from .helpers.os import set_environment_variables, write_to_file
 from .helpers.network import urlretrieve
-from .helpers.constants import MANAGEMENT_RG_NAME
+from .helpers.constants import MANAGEMENT_RG_NAME, KUBECONFIG
+from .helpers.argument import get_default_arg
 
 
 def init_environment(cmd, prompt=True, management_cluster_name=None,
@@ -418,18 +420,18 @@ def check_resource_group(cmd, resource_group_name, default_resource_group_name, 
 def create_workload_cluster(  # pylint: disable=unused-argument,too-many-arguments,too-many-locals,too-many-statements
         cmd,
         capi_name,
-        resource_group_name=None,
-        location=None,
-        control_plane_machine_type=os.environ.get("AZURE_CONTROL_PLANE_MACHINE_TYPE", "Standard_D2s_v3"),
-        control_plane_machine_count=os.environ.get("AZURE_CONTROL_PLANE_MACHINE_COUNT", 3),
-        node_machine_type=os.environ.get("AZURE_NODE_MACHINE_TYPE", "Standard_D2s_v3"),
-        node_machine_count=os.environ.get("AZURE_NODE_MACHINE_COUNT", 3),
-        kubernetes_version=os.environ.get("AZURE_KUBERNETES_VERSION", "1.22.8"),
-        ssh_public_key=os.environ.get("AZURE_SSH_PUBLIC_KEY", ""),
+        resource_group_name=get_default_arg("group"),
+        location=get_default_arg("location"),
+        control_plane_machine_type=get_default_arg("control_plane_machine_type"),
+        control_plane_machine_count=get_default_arg("control_plane_machine_count"),
+        node_machine_type=get_default_arg("node_machine_type"),
+        node_machine_count=get_default_arg("node_machine_count"),
+        kubernetes_version=get_default_arg("kubernetes_version"),
+        vnet_name=get_default_arg("vnet_name"),
+        ssh_public_key=get_default_arg("ssh_public_key"),
         external_cloud_provider=False,
         management_cluster_name=None,
         management_cluster_resource_group_name=None,
-        vnet_name=None,
         machinepool=False,
         ephemeral_disks=False,
         windows=False,
