@@ -64,16 +64,16 @@ class FindDefaultCluster(unittest.TestCase):
 
     def setUp(self):
         self.cmd = Mock()
-        self.check_cmd_patch = patch('azext_capi.custom.check_cmd')
-        self.check_cmd_mock = self.check_cmd_patch.start()
-        self.check_cmd_mock.return_value = None
-        self.addCleanup(self.check_cmd_patch.stop)
+        self.match_output_patch = patch('azext_capi.custom.match_output')
+        self.match_output_mock = self.match_output_patch.start()
+        self.match_output_mock.return_value = None
+        self.addCleanup(self.match_output_patch.stop)
 
     # Test kubernetes cluster is found and running
     def test_found_k8s_cluster_running_state(self):
-        self.check_cmd_mock.return_value = "fake_return"
+        self.match_output_mock.return_value = "fake_return"
         result = _find_default_cluster()
-        self.check_cmd_mock.assert_called_once()
+        self.match_output_mock.assert_called_once()
         self.assertTrue(result)
 
     # Test kubernetes cluster is found but not running state matched
@@ -83,7 +83,7 @@ class FindDefaultCluster(unittest.TestCase):
 
     # Test error with command ran
     def test_encouter_error_with_ran_command(self):
-        self.check_cmd_mock.side_effect = subprocess.CalledProcessError(3, ['fakecommand'])
+        self.match_output_mock.side_effect = subprocess.CalledProcessError(3, ['fakecommand'])
         with self.assertRaises(subprocess.CalledProcessError):
             _find_default_cluster()
 
