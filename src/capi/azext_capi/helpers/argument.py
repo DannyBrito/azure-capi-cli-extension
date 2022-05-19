@@ -21,7 +21,7 @@ def get_default_arg(arg_name):
     """
     Hierarchy: passed argument value -> env variable -> config value -> static value
     """
-    allowed_defaults_values = {
+    ALLOWED_DEFAULT_ARGUMENTS = {
         "location": None,
         "group": None,
         "control_plane_machine_type": os.environ.get("AZURE_CONTROL_PLANE_MACHINE_TYPE", "Standard_D2s_v3"),
@@ -32,8 +32,8 @@ def get_default_arg(arg_name):
         "ssh_public_key": os.environ.get("AZURE_SSH_PUBLIC_KEY_B64", ""),
         "vnet_name": None
     }
-    if arg_name in allowed_defaults_values:
-        return get_default_arg_from_config(arg_name, allowed_defaults_values[arg_name])
+    if arg_name in ALLOWED_DEFAULT_ARGUMENTS:
+        return get_default_arg_from_config(arg_name, ALLOWED_DEFAULT_ARGUMENTS[arg_name])
     raise NoAllowedGetDefaultArgument(f"{arg_name} argument doesn't have an allowed default value")
 
 

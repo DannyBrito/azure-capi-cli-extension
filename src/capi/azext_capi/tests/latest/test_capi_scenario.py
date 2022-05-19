@@ -18,8 +18,9 @@ TEST_DIR = os.path.abspath(os.path.join(os.path.abspath(__file__), '..'))
 
 class CapiScenarioTest(ScenarioTest):
 
+    @patch('azext_capi.helpers.argument.get_default_arg_from_config')
     @patch('azext_capi.custom.exit_if_no_management_cluster')
-    def test_capi_create(self, mock_def):
+    def test_capi_create(self, mock_def, get_default_arg_config):
         # Test that error is raised if no args are passed
         with self.assertRaises(SystemExit):
             self.cmd('capi create')

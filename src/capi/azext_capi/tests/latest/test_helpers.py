@@ -496,29 +496,36 @@ class GetDefaultArgFromConfig(unittest.TestCase):
         self.get_default_cli_mock.return_value.config = MagicMock()
         self.addCleanup(self.get_default_cli_patch.stop)
 
-    def get_default_arg_from_config(self):
-
-        # Test default return is fallback value if given argument is None
-        cmd = MagicMock()
+    def test__no_existing_default_value_in_config(self):
         fallback_value = "default_vnet_name"
-        cmd.cli_ctx.config.get.return_value = fallback_value
-        return_value = argument.get_default_arg(cmd, None, "vnet_name", fallback_value)
-        cmd.cli_ctx.config.get.assert_called_once()
+        self.get_default_cli_mock.return_value.config.get.return_value = fallback_value
+        return_value = argument.get_default_arg_from_config("vnet_name", fallback_value)
         self.assertEquals(return_value, fallback_value)
 
-        # # Test if given argument is not None will return given argument value
-        # cmd = MagicMock()
-        # argument_value = "fake_location"
-        # return_value = argument.get_default_arg(cmd, argument_value, "location", "fake_fallback")
-        # cmd.assert_not_called()
-        # self.assertEquals(return_value, argument_value)
+    def test_existing_default_value_in_config(self):
+        existing_default_value = "fake-location-exists"
+        fallback_value = "fake-location-fallback"
+        self.get_default_cli_mock.return_value.config.get.return_value = existing_default_value
+        return_value = argument.get_default_arg_from_config("location", fallback_value)
+        self.assertEquals(return_value, existing_default_value)
+        self.assertNotEquals(return_value, fallback_value)
 
-        # # Test return existing config value if not argument value given
-        # cmd = MagicMock()
-        # config_value = "fake_config_value"
-        # default_fallback = "default_fallback"
-        # cmd.cli_ctx.config.get.return_value = config_value
-        # return_value = argument.get_default_arg(cmd, None, "location", default_fallback)
-        # cmd.cli_ctx.config.get.assert_called_once()
-        # self.assertEquals(return_value, config_value)
-        # self.assertNotEquals(return_value, default_fallback)
+
+class GetDefaultArg(unittest.TestCase):
+
+    def setUp(self):
+        self.get_default_arg_from_config_patch = patch('azext_capi.helpers.argument.get_default_arg_from_config')
+        self.get_default_arg_from_config_mock = self.get_default_arg_from_config_patch.start()
+        self.addCleanup(self.get_default_arg_from_config_patch.stop)
+
+    def test_allowed_argument_get_default_value(self):
+        location_default_static_value = None
+        self.get_default_arg_from_config_mock.return_value = location_default_static_value
+        result = argument.get_default_arg("location")
+        self.assertEquals(result, location_default_static_value)
+
+    def test_not_allowed_argument_get_default_value(self):
+        location_default_static_value = None
+        self.get_default_arg_from_config_mock.return_value = location_default_static_value
+        with self.assertRaises(argument.NoAllowedGetDefaultArgument):
+            argument.get_default_arg("invalid-argument")
