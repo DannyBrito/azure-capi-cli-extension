@@ -3,6 +3,10 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
 
+"""
+This module contains helper functions for the az capi extension.
+"""
+
 import os
 
 
@@ -23,3 +27,7 @@ def write_to_file(filename, file_input):
     """
     with open(filename, "w", encoding="utf-8") as manifest_file:
         manifest_file.write(file_input)
+
+
+def delete_file(file):
+    os.remove(file)

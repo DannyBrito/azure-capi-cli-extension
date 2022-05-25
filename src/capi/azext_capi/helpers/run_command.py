@@ -13,12 +13,17 @@ from .spinner import Spinner
 from .logger import logger, is_verbose
 
 
-def run_shell_command(command):
+def run_shell_command(command, exception=None):
     # if --verbose, don't capture stderr
     stderr = None if is_verbose() else subprocess.STDOUT
-    output = subprocess.check_output(command, universal_newlines=True, stderr=stderr)
-    logger.info("%s returned:\n%s", " ".join(command), output)
-    return output
+    try:
+        output = subprocess.check_output(command, universal_newlines=True, stderr=stderr)
+        logger.info("%s returned:\n%s", " ".join(command), output)
+        return output
+    except (subprocess.CalledProcessError, FileNotFoundError) as err:
+        if exception is not None:
+            raise exception from err
+        raise
 
 
 def try_command_with_spinner(cmd, command, spinner_begin_msg, spinner_end_msg,

@@ -157,7 +157,7 @@ def create_aks_management_cluster(cmd, cluster_name, resource_group_name=None, l
         default_location = "southcentralus"
         msg = f"Please provide a location for {resource_group_name} resource group"
         location = get_user_prompt_or_default(msg, default_location, skip_prompt=yes)
-    if not create_resource_group(cmd, resource_group_name, location, yes):
+    if not create_resource_group(cmd, resource_group_name, location, yes=yes):
         return False
     command = ["az", "aks", "create", "-g", resource_group_name, "--name", cluster_name, "--generate-ssh-keys",
                "--network-plugin", "azure", "--network-policy", "calico", "--node-count", "1"]
