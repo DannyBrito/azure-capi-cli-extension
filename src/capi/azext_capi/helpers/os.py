@@ -8,6 +8,7 @@ This module contains helper functions for the az capi extension.
 """
 
 import os
+import tarfile
 
 
 def set_environment_variables(dic=None):
@@ -30,4 +31,22 @@ def write_to_file(filename, file_input):
 
 
 def delete_file(file):
+    """
+    Delete a file from file system
+    """
     os.remove(file)
+
+
+def extract_binary_from_tar_package(binary_path, binary_name, extraction_dir, cleanup=False):
+    """
+    Extract a binary from tar.gz package.
+    Arguments:
+    cleanup will delete tar.gz after binary is extracted.
+    """
+    with tarfile.open(binary_path) as tar:
+        tar.extract(binary_name, extraction_dir)
+
+    if cleanup:
+        delete_file(binary_path)
+
+    return True

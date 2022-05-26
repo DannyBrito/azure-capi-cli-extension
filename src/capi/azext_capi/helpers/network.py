@@ -10,9 +10,12 @@ from urllib.parse import urlparse
 import platform
 import ssl
 import sys
+import requests
+
 
 from six.moves.urllib.request import urlopen
 
+from azure.core.exceptions import HttpResponseError
 from azure.cli.core.util import in_cloud_console
 
 
@@ -30,6 +33,7 @@ def ssl_context():
 
 def urlretrieve(url, filename):
     """Retrieves the contents of a URL to a file."""
+    print(filename)
     req = urlopen(url, context=ssl_context())  # pylint: disable=consider-using-with
     with open(filename, "wb") as out:
         out.write(req.read())
@@ -38,3 +42,12 @@ def urlretrieve(url, filename):
 def get_url_domain_name(url):
     domain = urlparse(url).netloc
     return domain if domain else None
+
+
+def urlretrieve_tar_package(url, package_name):
+    """Retrieves TAR pacakge from URL."""
+    response = requests.get(url, stream=True)
+    if not response.ok:
+        raise HttpResponseError(f"Couldn't retrieve {package_name}")
+    with open(package_name, 'wb') as f:
+        f.write(response.raw.read())

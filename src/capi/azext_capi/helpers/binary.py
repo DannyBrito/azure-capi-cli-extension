@@ -15,10 +15,11 @@ from azure.cli.core.azclierror import ValidationError, UnclassifiedUserFault
 from knack.prompting import prompt_y_n
 from six.moves.urllib.request import urlopen  # pylint: disable=import-error
 
-from azext_capi.helpers.network import ssl_context, urlretrieve
+from azext_capi.helpers.network import ssl_context, urlretrieve, urlretrieve_tar_package
 from azext_capi._params import _get_default_install_location
 from azext_capi.helpers.logger import logger
 from azext_capi.helpers.spinner import Spinner
+from azext_capi.helpers.os import extract_binary_from_tar_package
 
 
 def which(binary):
@@ -96,6 +97,50 @@ def install_clusterctl(_cmd, client_version="latest", install_location=None, sou
         os.makedirs(install_dir)
 
     return download_binary(install_location, install_dir, file_url, system, cli)
+
+
+def install_azwi(_cmd, client_version="v0.10.0", install_location=None, source_url=None):
+    """
+    Install azwi - utility CLI that helps manage Azure AD Workload Identity.
+    """
+
+    # TODO: support ARM someday?
+    cli_package_name = f"azwi-{client_version}"
+    cli_package_name += "-{}-amd64.tar.gz"
+    if not source_url:
+        source_url = f"https://github.com/Azure/azure-workload-identity/releases/download/{client_version}/"
+
+    file_url = ""
+    system = platform.system()
+    if system in ("Darwin", "Linux", "Windows"):
+        cli_package_name = cli_package_name.format(system.lower())
+        file_url = source_url + cli_package_name
+    else:
+        raise ValidationError(f'azwi is not available for "{system}"')
+
+    # ensure installation directory exists
+    if install_location is None:
+        install_location = _get_default_install_location(cli_package_name)
+
+    install_dir = os.path.dirname(install_location)
+
+    if not os.path.exists(install_dir):
+        os.makedirs(install_dir)
+
+    return download_azwi(install_location, install_dir, file_url, system)
+
+
+def download_azwi(install_location, install_dir, file_url, system):
+    logger.info('Downloading client to "%s" from "%s"', install_location, file_url)
+    urlretrieve_tar_package(file_url, install_location)
+    extract_binary_from_tar_package(install_location, "azwi", install_dir, cleanup=True)
+    os.chmod(
+        install_location,
+        os.stat(install_location).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+    )
+    is_binary_in_path(install_dir, "azwi", system)
+
+    return install_location
 
 
 def install_kind(_cmd, client_version="v0.10.0", install_location=None, source_url=None):
@@ -187,6 +232,12 @@ def download_binary(install_location, install_dir, file_url, system, cli):
         err_msg = f"Connection error while attempting to download client ({ex})"
         raise FileOperationError(err_msg) from ex
 
+    is_binary_in_path(install_dir, cli, system)
+
+    return install_location
+
+
+def is_binary_in_path(install_dir, cli, system):
     if system == "Windows":
         # be verbose, as the install_location is likely not in Windows's search PATHs
         env_paths = os.environ["PATH"].split(";")
@@ -212,4 +263,3 @@ def download_binary(install_location, install_dir, file_url, system, cli):
                 install_dir,
                 cli,
             )
-    return install_location
