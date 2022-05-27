@@ -52,6 +52,10 @@ def check_kubectl(cmd, install=False):
     check_binary(cmd, "kubectl", install_kubectl, install)
 
 
+def check_azwi(cmd, install=False):
+    check_binary(cmd, "azwi", install_azwi, install)
+
+
 def check_prereq_docker():
     if which("docker"):
         return True

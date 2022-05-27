@@ -10,7 +10,11 @@ This module contains helper functions for the az capi extension.
 import json
 import subprocess
 import os
-import requests
+
+from azext_capi.helpers.azwi import generate_jwks_document
+from azext_capi.helpers.keys import generate_key_pair
+from azext_capi.helpers.binary import check_azwi
+from azext_capi.helpers.network import get_json_from_url
 
 from Crypto import Random
 from knack.prompting import prompt_y_n
@@ -85,7 +89,10 @@ def upload_storage_blob(blob_name, container, file):
     run_shell_command(command, exception)
 
 
-def create_oidc_issuer_blob_storage_account(location):
+def create_oidc_issuer_blob_storage_account(cmd, location):
+    check_azwi(cmd, install=True)
+    key_name = "sa"
+    generate_key_pair(key_name)
 
     rand = Random.get_random_bytes(4).hex()
     storage_account = f"oidcissuer{rand}"
@@ -112,9 +119,15 @@ def create_oidc_issuer_blob_storage_account(location):
     delete_file(openid_file)
 
     url = openid_configuration["issuer"] + blob_name
-    req = requests.get(url)
-    if req.ok:
-        req = req.json()
-        if req != openid_configuration:
-            raise UnclassifiedUserFault("Discory document is not publicly accessible")
-    raise UnclassifiedUserFault("Could not retreive Discory document")
+    req = get_json_from_url(url, error_msg="Could not retreive Discory document")
+    if req != openid_configuration:
+        raise UnclassifiedUserFault("Discory document is not publicly accessible")
+
+    jwks = generate_jwks_document(f"{key_name}.pub")
+    blob_name = "openid/v1/jwks"
+    upload_storage_blob(blob_name, storage_container, jwks)
+
+    url = openid_configuration["issuer"] + blob_name
+    req = get_json_from_url(url, error_msg="Could not retreive JWKS document")
+    if "keys" not in req:
+        raise UnclassifiedUserFault("JWKS document is not publicly accessible")

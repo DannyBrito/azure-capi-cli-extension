@@ -16,6 +16,7 @@ import requests
 from six.moves.urllib.request import urlopen
 
 from azure.core.exceptions import HttpResponseError
+from azure.cli.core.azclierror import UnclassifiedUserFault
 from azure.cli.core.util import in_cloud_console
 
 
@@ -51,3 +52,11 @@ def urlretrieve_tar_package(url, package_name):
         raise HttpResponseError(f"Couldn't retrieve {package_name}")
     with open(package_name, 'wb') as f:
         f.write(response.raw.read())
+
+
+def get_json_from_url(url, error_msg=""):
+    req = requests.get(url)
+    if req.ok:
+        return req.json()
+    error_msg = error_msg if error_msg else f"Could not complete Request:{req.status_code}"
+    raise UnclassifiedUserFault(error_msg)
