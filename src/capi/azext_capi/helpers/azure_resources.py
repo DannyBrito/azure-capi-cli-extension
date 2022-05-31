@@ -7,27 +7,12 @@
 This module contains helper functions for the az capi extension.
 """
 
-import json
 import subprocess
-import os
 
-from azext_capi.helpers.azwi import generate_jwks_document
-from azext_capi.helpers.keys import generate_key_pair
-from azext_capi.helpers.binary import check_azwi
-from azext_capi.helpers.network import get_json_from_url
-
-from Crypto import Random
 from knack.prompting import prompt_y_n
 from azure.cli.core.azclierror import UnclassifiedUserFault
 
 from .run_command import try_command_with_spinner, run_shell_command
-from .constants import AZURE_STORAGE_CONTAINER, AZURE_STORAGE_ACCOUNT
-from .os import delete_file
-
-
-def write_to_file(filename, file_input):
-    with open(filename, "w", encoding="utf-8") as manifest_file:
-        manifest_file.write(file_input)
 
 
 def create_resource_group(cmd, rg_name, location, no_logging=False, yes=False):
@@ -89,45 +74,21 @@ def upload_storage_blob(blob_name, container, file):
     run_shell_command(command, exception)
 
 
-def create_oidc_issuer_blob_storage_account(cmd, location):
-    check_azwi(cmd, install=True)
-    key_name = "sa"
-    generate_key_pair(key_name)
+def create_azure_key_vault(keyvault_name, resource_group, location):
+    command = ["az", "keyvault", "create", "--name", keyvault_name, "--location", location,
+               "--resource-group", resource_group]
+    exception = UnclassifiedUserFault(f"Could not create {keyvault_name} keyvault")
+    run_shell_command(command, exception)
 
-    rand = Random.get_random_bytes(4).hex()
-    storage_account = f"oidcissuer{rand}"
-    resource_group = "oidc-issuer"
-    storage_container = "oidc-test"
-    os.environ[AZURE_STORAGE_ACCOUNT] = storage_account
-    os.environ[AZURE_STORAGE_CONTAINER] = storage_container
-    create_azure_blob_storage_account(resource_group, location, storage_account, storage_container)
 
-    openid_configuration = {
-        "issuer": f"https://{storage_account}.blob.core.windows.net/{storage_container}/",
-        "jwks_uri": f"https://{storage_account}.blob.core.windows.net/{storage_container}/openid/v1/jwks",
-        "response_types_supported": ["id_token"],
-        "subject_types_supported": ["public"],
-        "id_token_signing_alg_values_supported": ["RS256"]
-    }
+def create_azure_keyvault_secret(secret, keyvault_secret_name, keyvault_name):
+    command = ["az", "keyvault", "secret", "set", "--vault-name", keyvault_name,
+               "--name", keyvault_secret_name, "--value", secret]
+    exception = UnclassifiedUserFault(f"Could not create {keyvault_secret_name} secret")
+    run_shell_command(command, exception)
 
-    openid_file = "openid_configuration.json"
-    write_to_file(openid_file, json.dumps(openid_configuration))
 
-    blob_name = ".well-known/openid-configuration"
-    upload_storage_blob(blob_name, storage_container, openid_file)
-
-    delete_file(openid_file)
-
-    url = openid_configuration["issuer"] + blob_name
-    req = get_json_from_url(url, error_msg="Could not retreive Discory document")
-    if req != openid_configuration:
-        raise UnclassifiedUserFault("Discory document is not publicly accessible")
-
-    jwks = generate_jwks_document(f"{key_name}.pub")
-    blob_name = "openid/v1/jwks"
-    upload_storage_blob(blob_name, storage_container, jwks)
-
-    url = openid_configuration["issuer"] + blob_name
-    req = get_json_from_url(url, error_msg="Could not retreive JWKS document")
-    if "keys" not in req:
-        raise UnclassifiedUserFault("JWKS document is not publicly accessible")
+def create_azure_key_vault_and_secret(resource_group, location, keyvault_name, keyvault_secret_name, secret):
+    create_resource_group(None, resource_group, location, no_logging=True, yes=True)
+    create_azure_key_vault(keyvault_name, resource_group, location)
+    create_azure_keyvault_secret(secret, keyvault_secret_name, keyvault_name)

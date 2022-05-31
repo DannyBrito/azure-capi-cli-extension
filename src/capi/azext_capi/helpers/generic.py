@@ -8,6 +8,7 @@ This module contains helper functions for the az capi extension.
 """
 
 import re
+from Crypto import Random
 
 
 def has_kind_prefix(inpt_str):
@@ -18,3 +19,8 @@ def has_kind_prefix(inpt_str):
 def match_output(output, regexp=None):
     """Returns regex search result against given parameter"""
     return re.search(regexp, output) if regexp is not None else None
+
+
+def get_random_hex_from_bytes(bytes_number=4):
+    """Returns random hex from number of radomn bytes"""
+    return Random.get_random_bytes(bytes_number).hex()

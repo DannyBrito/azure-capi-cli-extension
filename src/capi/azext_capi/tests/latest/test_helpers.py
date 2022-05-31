@@ -16,9 +16,10 @@ from azure.cli.core.azclierror import ResourceNotFoundError
 
 import azext_capi.helpers.network as network
 import azext_capi.helpers.generic as generic
-from azext_capi.custom import create_resource_group, create_new_management_cluster, get_user_prompt_or_default, management_cluster_components_missing_matching_expressions
+from azext_capi.custom import create_new_management_cluster, get_user_prompt_or_default, management_cluster_components_missing_matching_expressions
 from azext_capi.helpers.kubectl import check_kubectl_namespace, find_attribute_in_context, find_kubectl_current_context, find_default_cluster, add_kubeconfig_to_command
 from azext_capi.helpers.run_command import try_command_with_spinner, run_shell_command
+from azext_capi.helpers.azure_resources import create_resource_group
 
 
 class TestSSLContextHelper(unittest.TestCase):
@@ -212,21 +213,21 @@ class CreateResourceGroup(unittest.TestCase):
         self.cmd = Mock()
         self.group = "fake-resource-group"
         self.location = "fake-location"
-        self.try_command_patch = patch('azext_capi.custom.try_command_with_spinner')
+        self.try_command_patch = patch('azext_capi.helpers.azure_resources.try_command_with_spinner')
         self.try_command_mock = self.try_command_patch.start()
         self.try_command_mock.return_value = None
         self.addCleanup(self.try_command_patch.stop)
 
     # Test created new resource group
     def test_create_valid_resource_group(self):
-        result = create_resource_group(self.cmd, self.group, self.location, True)
+        result = create_resource_group(self.cmd, self.group, self.location, yes=True)
         self.assertTrue(result)
 
     # Test error creating resource group
     def test_raise_error_invalid_resource_group(self):
         self.try_command_mock.side_effect = subprocess.CalledProcessError(3, ['fakecommand'])
         with self.assertRaises(subprocess.CalledProcessError):
-            create_resource_group(self.cmd, self.group, self.location, True)
+            create_resource_group(self.cmd, self.group, self.location, yes=True)
 
 
 class GetUserPromptMethodTest(unittest.TestCase):

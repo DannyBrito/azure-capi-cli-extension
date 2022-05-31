@@ -10,7 +10,6 @@ This module contains helper functions for the az capi extension.
 from Crypto.PublicKey import RSA
 
 
-# Temporal till custom template PR merge its a copy same method
 def write_bites_to_file(filename, file_input):
     """
     Write bites input to file.

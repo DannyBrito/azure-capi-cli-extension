@@ -12,7 +12,6 @@ import json
 import os
 import subprocess
 import time
-import re
 
 import azext_capi.helpers.kubectl as kubectl_helpers
 
@@ -24,8 +23,6 @@ from azure.core.exceptions import ResourceNotFoundError as ResourceNotFoundExcep
 from azure.cli.core.azclierror import ResourceNotFoundError
 from azure.cli.core.azclierror import UnclassifiedUserFault
 from azure.cli.core.azclierror import MutuallyExclusiveArgumentError
-from jinja2 import Environment, PackageLoader, StrictUndefined
-from jinja2.exceptions import UndefinedError
 from knack.prompting import prompt_choice_list, prompt_y_n
 from msrestazure.azure_exceptions import CloudError
 
@@ -37,13 +34,15 @@ from .helpers.run_command import run_shell_command, try_command_with_spinner
 from .helpers.binary import check_clusterctl, check_kubectl, check_kind
 from .helpers.prompt import get_cluster_name_by_user_prompt, get_user_prompt_or_default
 from .helpers.generic import match_output
-from .helpers.os import set_environment_variables, write_to_file
-from .helpers.network import urlretrieve
+from .helpers.os import write_to_file
 from .helpers.constants import MANAGEMENT_RG_NAME
+from .helpers.azure_resources import create_resource_group
+from .actions.render_template import render_custom_cluster_template, render_builtin_jinja_template
+from .actions.aad_workload_identity import create_oidc_issuer_blob_storage_account, install_mutating_admission_webhook
 
 
 def init_environment(cmd, prompt=True, management_cluster_name=None,
-                     resource_group_name=None, location=None):
+                     resource_group_name=None, location=None, aad_workload_identity=False):
     check_prereqs(cmd, install=True)
     # Create a management cluster if needed
     use_new_cluster = False
@@ -84,7 +83,8 @@ https://cluster-api.sigs.k8s.io/user/concepts.html
         use_new_cluster = True
     if use_new_cluster and not create_new_management_cluster(cmd, management_cluster_name,
                                                              resource_group_name, location,
-                                                             pre_prompt_text=pre_prompt, prompt=prompt):
+                                                             pre_prompt_text=pre_prompt, prompt=prompt,
+                                                             aad_workload_identity=aad_workload_identity):
         return False
 
     _create_azure_identity_secret(cmd)
@@ -116,20 +116,12 @@ def _install_capi_provider_components(cmd, kubeconfig=None):
     try_command_with_spinner(cmd, command, begin_msg, end_msg, error_msg)
 
 
-def create_resource_group(cmd, rg_name, location, yes=False):
-    msg = f'Create the Azure resource group "{rg_name}" in location "{location}"?'
-    if yes or prompt_y_n(msg, default="n"):
-        command = ["az", "group", "create", "-l", location, "-n", rg_name]
-        begin_msg = f"Creating Resource Group: {rg_name}"
-        end_msg = f"✓ Created Resource Group: {rg_name}"
-        err_msg = f"Could not create resource group {rg_name}"
-        try_command_with_spinner(cmd, command, begin_msg, end_msg, err_msg)
-        return True
-    return False
-
-
 def create_management_cluster(cmd, cluster_name=None, resource_group_name=None, location=None,
-                              yes=False):
+                              yes=False, aad_workload_identity=False):
+
+    if aad_workload_identity and not location:
+        raise RequiredArgumentMissingError("AAD Workload identity flag feature activated, --location required")
+
     check_prereqs(cmd)
     existing_cluster = kubectl_helpers.find_cluster_in_current_context()
     found_cluster = False
@@ -142,7 +134,8 @@ def create_management_cluster(cmd, cluster_name=None, resource_group_name=None, 
             except subprocess.CalledProcessError as err:
                 raise UnclassifiedUserFault("Can't locate a Kubernetes cluster") from err
     if not found_cluster and not create_new_management_cluster(cmd, cluster_name, resource_group_name,
-                                                               location, prompt=not yes):
+                                                               location, prompt=not yes,
+                                                               aad_workload_identity=aad_workload_identity):
         return
     set_azure_identity_secret_env_vars()
     _create_azure_identity_secret(cmd)
@@ -176,7 +169,9 @@ def create_aks_management_cluster(cmd, cluster_name, resource_group_name=None, l
 
 
 def create_new_management_cluster(cmd, cluster_name=None, resource_group_name=None,
-                                  location=None, pre_prompt_text=None, prompt=True):
+                                  location=None, pre_prompt_text=None, prompt=True,
+                                  aad_workload_identity=False):
+
     choices = ["azure - a management cluster in the Azure cloud",
                "local - a local Docker container-based management cluster",
                "exit - don't create a management cluster"]
@@ -202,7 +197,14 @@ Where do you want to create a management cluster?
         begin_msg = f'Creating local management cluster "{cluster_name}" with kind'
         end_msg = f'✓ Created local management cluster "{cluster_name}"'
         command = ["kind", "create", "cluster", "--name", cluster_name]
-        try_command_with_spinner(cmd, command, begin_msg, end_msg, "Couldn't create kind management cluster")
+        if aad_workload_identity:
+            add_workload_identity_config = create_oidc_issuer_blob_storage_account(cmd, location)
+            command += ["--config", add_workload_identity_config]
+            try_command_with_spinner(cmd, command, begin_msg, end_msg, "Couldn't create kind management cluster")
+            install_mutating_admission_webhook()
+        else:
+            try_command_with_spinner(cmd, command, begin_msg, end_msg, "Couldn't create kind management cluster")
+
     else:
         return False
     return True
@@ -311,46 +313,6 @@ def generate_workload_cluster_configuration(cmd, filename, args, user_provided_t
             raise UnclassifiedUserFault(msg) from err
 
 
-def render_builtin_jinja_template(args):
-    """
-    Use the built-in template and process it with Jinja
-    """
-    env = Environment(loader=PackageLoader("azext_capi", "templates"),
-                      auto_reload=False, undefined=StrictUndefined)
-    logger.debug("Available templates: %s", env.list_templates())
-    jinja_template = env.get_template("base.jinja")
-    try:
-        return jinja_template.render(args)
-    except UndefinedError as err:
-        msg = f"Could not generate workload cluster configuration.\n{err}"
-        raise RequiredArgumentMissingError(msg) from err
-
-
-def render_custom_cluster_template(template, filename, args=None):
-    """
-    Fetch a user-defined template and process it with "clusterctl generate"
-    """
-    set_environment_variables(args)
-    command = ["clusterctl", "generate", "yaml", "--from"]
-    if not os.path.isfile(template):
-        reg = r"github.com\/[^\/]+?\/[^\/]+?\/blob\/[^\/]+\/[^\/]+?$"
-        if not match_output(template, reg):
-            file_name = f"raw-{filename}"
-            urlretrieve(template, file_name)
-            template = file_name
-    command += [template]
-    try:
-        return run_shell_command(command)
-    except subprocess.CalledProcessError as err:
-        err_command_list = err.args[1]
-        err_command_name = err_command_list[0]
-        if err_command_name == "clusterctl":
-            error_variables = re.search(r"(?<=\[).+?(?=\])", err.stdout)[0]
-            msg = "Could not generate workload cluster configuration."
-            msg += f"\nPlease set the following environment variables:\n{error_variables}"
-        raise RequiredArgumentMissingError(msg) from err
-
-
 # pylint: disable=inconsistent-return-statements
 def create_workload_cluster(  # pylint: disable=unused-argument,too-many-arguments,too-many-locals,too-many-statements
         cmd,
@@ -372,6 +334,7 @@ def create_workload_cluster(  # pylint: disable=unused-argument,too-many-argumen
         windows=False,
         pivot=False,
         user_provided_template=None,
+        aad_workload_identity=False,
         yes=False):
 
     if user_provided_template:
@@ -394,6 +357,9 @@ def create_workload_cluster(  # pylint: disable=unused-argument,too-many-argumen
             defined_args = " ,".join(defined_args)
             error_msg = f'The following arguments are incompatible with "--template":\n{defined_args}'
             raise MutuallyExclusiveArgumentError(error_msg)
+
+    if aad_workload_identity and not location:
+        raise RequiredArgumentMissingError("AAD Workload identity flag feature activated, --location required")
 
     # Check if the RG already exists and that it's consistent with the location
     # specified. CAPZ will actually create (and delete) the RG if needed.
@@ -425,7 +391,7 @@ def create_workload_cluster(  # pylint: disable=unused-argument,too-many-argumen
     set_azure_identity_secret_env_vars()
 
     if not init_environment(cmd, not yes, management_cluster_name, management_cluster_resource_group_name,
-                            location):
+                            location, aad_workload_identity=aad_workload_identity):
         return
 
     # Generate the cluster configuration
