@@ -13,10 +13,24 @@ from azure.cli.testsdk import (ScenarioTest, ResourceGroupPreparer)
 from knack.prompting import NoTTYException
 from msrestazure.azure_exceptions import CloudError
 
+import azext_capi.helpers.argument as argument_helpers
 TEST_DIR = os.path.abspath(os.path.join(os.path.abspath(__file__), '..'))
 
 
 class CapiScenarioTest(ScenarioTest):
+
+    saveDefaultArguments = []
+
+    @classmethod
+    def setUpClass(cls):
+        super(CapiScenarioTest, cls).setUpClass()
+        cls.saveDefaultArguments = argument_helpers.get_all_capi_set_defaults()
+        argument_helpers.delete_capi_default_section()
+
+    @classmethod
+    def tearDownClass(cls):
+        super(CapiScenarioTest, cls).tearDownClass()
+        argument_helpers.sets_list_in_capi_section(cls.saveDefaultArguments)
 
     @patch('azext_capi.helpers.argument.get_default_arg_from_config')
     @patch('azext_capi.custom.exit_if_no_management_cluster')

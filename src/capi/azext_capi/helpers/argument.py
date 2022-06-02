@@ -3,17 +3,25 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
 
-# pylint: disable=missing-docstring
-
 import os
 
 from azure.cli.core import get_default_cli
 
 
+def get_config_cli():
+    """
+    Gets config CLI Object
+    """
+    return get_default_cli().config
+
+
 # Setting default values, highest -> lowest
 # Hierarchy: value in parameter -> env variable -> config value -> static value
 def get_default_arg_from_config(arg_name, fallback):
-    config = get_default_cli().config
+    """
+    Gets default capi default argument value
+    """
+    config = get_config_cli()
     return config.get("capi", arg_name, fallback)
 
 
@@ -35,6 +43,34 @@ def get_default_arg(arg_name):
     if arg_name in ALLOWED_DEFAULT_ARGUMENTS:
         return get_default_arg_from_config(arg_name, ALLOWED_DEFAULT_ARGUMENTS[arg_name])
     raise NoAllowedGetDefaultArgument(f"{arg_name} argument doesn't have an allowed default value")
+
+
+def get_all_capi_set_defaults():
+    """
+    Get all set default values in capi section
+    """
+    config = get_config_cli()
+    return config.items("capi")
+
+
+def delete_capi_default_section():
+    """
+    Deletes all set default values in capi section
+    """
+    config = get_config_cli()
+    save_capi_config = get_all_capi_set_defaults()
+    for item in save_capi_config:
+        config.remove_option("capi", item["name"])
+    return save_capi_config
+
+
+def sets_list_in_capi_section(list):
+    """
+    Deletes all set default values in capi section
+    """
+    config = get_config_cli()
+    for item in list:
+        config.set_value("capi", item["name"], item["value"])
 
 
 class NoAllowedGetDefaultArgument(Exception):
