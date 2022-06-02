@@ -50,3 +50,11 @@ def extract_binary_from_tar_package(binary_path, binary_name, extraction_dir, cl
         delete_file(binary_path)
 
     return True
+
+
+def write_bites_to_file(filename, file_input):
+    """
+    Write bites input to file.
+    """
+    with open(filename, "wb") as manifest_file:
+        manifest_file.write(file_input)

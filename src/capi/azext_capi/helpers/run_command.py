@@ -3,8 +3,6 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # --------------------------------------------------------------------------------------------
 
-# pylint: disable=missing-docstring
-
 import subprocess
 
 from azure.cli.core.azclierror import UnclassifiedUserFault
@@ -14,6 +12,11 @@ from .logger import logger, is_verbose
 
 
 def run_shell_command(command, exception=None):
+    """
+    Simulates Running a CLI command via subproccess module.
+    Args:
+    exception: custom exception to be raised if command fails
+    """
     # if --verbose, don't capture stderr
     stderr = None if is_verbose() else subprocess.STDOUT
     try:

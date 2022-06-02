@@ -53,6 +53,9 @@ def check_kubectl(cmd, install=False):
 
 
 def check_azwi(cmd, install=False):
+    """
+    Checks AZWI binary and installs it if needed
+    """
     check_binary(cmd, "azwi", install_azwi, install)
 
 
@@ -135,6 +138,9 @@ def install_azwi(_cmd, client_version="v0.10.0", install_location=None, source_u
 
 
 def download_azwi(install_location, install_dir, file_url, system):
+    """
+    Download AZWI CLI tool
+    """
     logger.info('Downloading client to "%s" from "%s"', install_location, file_url)
     urlretrieve_tar_package(file_url, install_location)
     extract_binary_from_tar_package(install_location, "azwi", install_dir, cleanup=True)
@@ -242,6 +248,9 @@ def download_binary(install_location, install_dir, file_url, system, cli):
 
 
 def is_binary_in_path(install_dir, cli, system):
+    """
+    Verifies that binary is accessible in PATHs
+    """
     if system == "Windows":
         # be verbose, as the install_location is likely not in Windows's search PATHs
         env_paths = os.environ["PATH"].split(";")

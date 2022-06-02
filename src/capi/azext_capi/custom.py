@@ -38,7 +38,7 @@ from .helpers.os import write_to_file
 from .helpers.constants import MANAGEMENT_RG_NAME
 from .helpers.azure_resources import create_resource_group
 from .actions.render_template import render_custom_cluster_template, render_builtin_jinja_template
-from .actions.aad_workload_identity import create_oidc_issuer_blob_storage_account, install_mutating_admission_webhook
+from .actions.aad_workload_identity import set_aad_workload_identity_prerequirements, install_mutating_admission_webhook
 
 
 def init_environment(cmd, prompt=True, management_cluster_name=None,
@@ -116,12 +116,17 @@ def _install_capi_provider_components(cmd, kubeconfig=None):
     try_command_with_spinner(cmd, command, begin_msg, end_msg, error_msg)
 
 
-def create_management_cluster(cmd, cluster_name=None, resource_group_name=None, location=None,
-                              yes=False, aad_workload_identity=False):
-
+def aad_workload_identity_flag_validation(aad_workload_identity=False, location=None):
+    """
+    Raises exception if AAD Workload Identity flag is Activated without a location
+    """
     if aad_workload_identity and not location:
         raise RequiredArgumentMissingError("AAD Workload identity flag feature activated, --location required")
 
+
+def create_management_cluster(cmd, cluster_name=None, resource_group_name=None, location=None,
+                              yes=False, aad_workload_identity=False):
+    aad_workload_identity_flag_validation(aad_workload_identity, location)
     check_prereqs(cmd)
     existing_cluster = kubectl_helpers.find_cluster_in_current_context()
     found_cluster = False
@@ -198,7 +203,7 @@ Where do you want to create a management cluster?
         end_msg = f'✓ Created local management cluster "{cluster_name}"'
         command = ["kind", "create", "cluster", "--name", cluster_name]
         if aad_workload_identity:
-            add_workload_identity_config = create_oidc_issuer_blob_storage_account(cmd, location)
+            add_workload_identity_config = set_aad_workload_identity_prerequirements(cmd, location)
             command += ["--config", add_workload_identity_config]
             try_command_with_spinner(cmd, command, begin_msg, end_msg, "Couldn't create kind management cluster")
             install_mutating_admission_webhook()
@@ -358,8 +363,7 @@ def create_workload_cluster(  # pylint: disable=unused-argument,too-many-argumen
             error_msg = f'The following arguments are incompatible with "--template":\n{defined_args}'
             raise MutuallyExclusiveArgumentError(error_msg)
 
-    if aad_workload_identity and not location:
-        raise RequiredArgumentMissingError("AAD Workload identity flag feature activated, --location required")
+    aad_workload_identity_flag_validation(aad_workload_identity, location)
 
     # Check if the RG already exists and that it's consistent with the location
     # specified. CAPZ will actually create (and delete) the RG if needed.

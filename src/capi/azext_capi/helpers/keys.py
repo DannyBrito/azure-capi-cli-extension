@@ -9,16 +9,13 @@ This module contains helper functions for the az capi extension.
 
 from Crypto.PublicKey import RSA
 
-
-def write_bites_to_file(filename, file_input):
-    """
-    Write bites input to file.
-    """
-    with open(filename, "wb") as manifest_file:
-        manifest_file.write(file_input)
+from azext_capi.helpers.os import write_bites_to_file
 
 
 def generate_key_pair(key_name):
+    """
+    Generates public and private pair keys
+    """
     key = RSA.generate(2048)
     private_key = key.export_key("PEM")
     public_key = key.public_key().export_key("PEM")

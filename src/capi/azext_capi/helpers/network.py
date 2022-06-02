@@ -12,7 +12,6 @@ import ssl
 import sys
 import requests
 
-
 from six.moves.urllib.request import urlopen
 
 from azure.core.exceptions import HttpResponseError
@@ -34,13 +33,13 @@ def ssl_context():
 
 def urlretrieve(url, filename):
     """Retrieves the contents of a URL to a file."""
-    print(filename)
     req = urlopen(url, context=ssl_context())  # pylint: disable=consider-using-with
     with open(filename, "wb") as out:
         out.write(req.read())
 
 
 def get_url_domain_name(url):
+    """Retrives domain name of valid URL"""
     domain = urlparse(url).netloc
     return domain if domain else None
 
@@ -55,6 +54,10 @@ def urlretrieve_tar_package(url, package_name):
 
 
 def get_json_from_url(url, error_msg=""):
+    """
+    Retrieves JSON content of URL
+    Raises Exception if Request has not OK status
+    """
     req = requests.get(url)
     if req.ok:
         return req.json()
